@@ -1,0 +1,13 @@
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+
+# Compiled output
+dist/
+*.js
+*.d.ts
+*.js.map
