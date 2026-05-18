@@ -15,6 +15,11 @@ sync-to-feishu:
     REMOVED_PROTECTION_THRESHOLD: "0.30"
     DRY_RUN: "false"
   before_script:
+    # Install lark-cli and authenticate with app credentials (CI mode)
+    - npx @larksuite/cli@latest install
+    - export LARK_APP_ID=$FEISHU_APP_ID
+    - export LARK_APP_SECRET=$FEISHU_APP_SECRET
+    # Install script dependencies
     - npm ci --prefix scripts
   script:
     - node --enable-source-maps scripts/dist/sync-to-feishu.js

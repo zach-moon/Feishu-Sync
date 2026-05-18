@@ -1,0 +1,56 @@
+# ============================================================
+# FeiSync — 飞书多维表格同步 CI Job
+# ============================================================
+# 将本文件内容复制到你的业务仓库 .gitlab-ci.yml 中即可接入。
+#
+# 前置条件：
+#   1. 在飞书开放平台创建自建应用，获取 App ID / App Secret
+#   2. 让管理员审批应用
+#   3. 在飞书多维表格中授权该应用
+#   4. 在飞书表中创建字段：SpecID, title, status, primaryOwner, backupOwner, commitShaShort, time
+#   5. 在 GitLab 项目 Settings → CI/CD → Variables 中配置以下变量：
+#      - FEISHU_APP_ID      (Protected)
+#      - FEISHU_APP_SECRET  (Protected + Masked)
+#      - FEISHU_APP_TOKEN   (Protected)
+#      - FEISHU_TABLE_ID    (Protected)
+#
+# 触发条件：
+#   - push 到默认分支且 .kiro/specs/** 有变化
+#   - MR 合并且 .kiro/specs/** 有变化
+#   - 手动触发（设置 FORCE_SYNC=true）
+# ============================================================
+
+sync-to-feishu:
+  stage: deploy
+  image: node:20-alpine
+  rules:
+    # 手动强制同步（用于首次接入或灾难恢复）
+    - if: '$FORCE_SYNC == "true"'
+      when: manual
+    # push 到默认分支且 spec 文件有变化
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      changes:
+        - .kiro/specs/**/*
+    # MR 合并且 spec 文件有变化
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - .kiro/specs/**/*
+  variables:
+    NODE_ENV: production
+    REMOVED_PROTECTION_THRESHOLD: "0.30"
+    DRY_RUN: "false"
+  before_script:
+    # 安装 lark-cli 并配置应用凭证
+    - npx @larksuite/cli@latest install
+    - export LARK_APP_ID=$FEISHU_APP_ID
+    - export LARK_APP_SECRET=$FEISHU_APP_SECRET
+    # 安装脚本依赖
+    - npm ci --prefix scripts
+  script:
+    - node --enable-source-maps scripts/dist/sync-to-feishu.js
+  timeout: 10 minutes
+  retry:
+    max: 1
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
