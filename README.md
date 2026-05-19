@@ -232,39 +232,6 @@ feishu-sync/
             └── mask.ts             # 敏感信息脱敏
 ```
 
-## 换电脑部署
-
-```bash
-# 1. 克隆本项目
-git clone https://gitlab.com/zach-moon/feishu-sync.git
-cd feishu-sync
-
-# 2. 安装依赖
-cd scripts && npm install && cd ..
-
-# 3. 安装 lark-cli
-npx @larksuite/cli@latest install
-
-# 4. 登录飞书（会打开浏览器授权）
-lark-cli config init
-lark-cli auth login --scope "base:app:read base:app:update base:table:read base:table:create base:field:read base:field:create base:field:update base:field:delete base:record:read base:record:create base:record:update base:record:delete im:message im:message.send_as_user im:chat:read"
-
-# 5. 配置 .env（飞书表 URL + 仓库地址 + chat_id）
-cd scripts
-cp .env.example .env
-# 编辑 .env 填入实际值
-
-# 6. 配置 SSH key（如果目标仓库用 SSH 地址）
-# 确保 ssh-keygen 生成的公钥已添加到 GitLab/GitHub
-
-# 7. 手动跑一次验证
-cd ..
-./scripts/sync.sh
-
-# 8. 设置定时任务（每小时同步 + 每天 17:00 日报）
-./scripts/start-cron.sh
-```
-
 ## 认证说明
 
 - 使用 [lark-cli](https://github.com/larksuite/cli) 的 OAuth 个人登录，无需创建飞书应用
