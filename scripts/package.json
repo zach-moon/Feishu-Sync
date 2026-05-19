@@ -8,6 +8,7 @@
   },
   "scripts": {
     "sync": "tsx src/sync-to-feishu.ts",
+    "report": "tsx src/daily-report.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "tsc --noEmit",

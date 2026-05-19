@@ -198,5 +198,15 @@ export async function runSync(config: Config): Promise<number> {
   }
 
   reporter.reportConclusion('SUCCESS');
+
+  // Save snapshot for daily report
+  try {
+    const { saveSnapshot, cleanOldSnapshots } = await import('./snapshot.js');
+    saveSnapshot(taskRows);
+    cleanOldSnapshots();
+  } catch (err) {
+    console.warn(`[WARN] Failed to save snapshot: ${(err as Error).message}`);
+  }
+
   return 0;
 }

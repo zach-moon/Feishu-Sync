@@ -30,8 +30,24 @@ cd scripts && npm install && cd ..
 ```bash
 npx @larksuite/cli@latest install
 lark-cli config init          # 按提示操作（会打开浏览器）
-lark-cli auth login --recommend   # OAuth 登录飞书
 ```
+
+登录时需要一次性授权所有需要的权限：
+
+```bash
+lark-cli auth login --scope "base:app:read base:app:update base:table:read base:table:create base:field:read base:field:create base:field:update base:field:delete base:record:read base:record:create base:record:update base:record:delete im:message im:message.send_as_user im:chat:read"
+```
+
+这些权限的用途：
+| 权限 | 用途 |
+|------|------|
+| `base:app:read` | 读取多维表格 |
+| `base:table:read/create` | 读取/创建表 |
+| `base:field:read/create/update/delete` | 自动创建和管理字段 |
+| `base:record:read/create/update/delete` | 读写记录 |
+| `im:message` | 发送消息（日报） |
+| `im:message.send_as_user` | 以个人身份发消息到群 |
+| `im:chat:read` | 读取群列表（获取 chat_id） |
 
 ### 3. 创建飞书多维表格
 
@@ -55,7 +71,21 @@ GITLAB_REPO_URL=git@gitlab.example.com:group/project.git
 GITLAB_BRANCH=main
 ```
 
-### 5. 运行
+### 5. 获取飞书群 chat_id（日报功能需要）
+
+```bash
+lark-cli im +chat-list --format json
+```
+
+输出中找到目标群的 `chat_id`（格式为 `oc_xxxx`），加到 `.env`：
+
+```env
+FEISHU_CHAT_ID=oc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+> 如果不需要日报功能，可以跳过这步。
+
+### 6. 运行
 
 ```bash
 cd ..
