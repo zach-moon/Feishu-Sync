@@ -202,33 +202,68 @@ FORCE_SYNC=true npx tsx src/sync-to-feishu.ts
 
 ```
 feishu-sync/
-├── scripts/
-│   ├── src/
-│   │   ├── sync-to-feishu.ts   # 入口
-│   │   ├── sync.ts             # 主流程编排
-│   │   ├── config.ts           # 配置加载
-│   │   ├── scanner.ts          # Spec 目录扫描
-│   │   ├── parser.ts           # tasks.md 解析
-│   │   ├── normalizer.ts       # 归一化 + owners 读取
-│   │   ├── diff.ts             # 差异计算
-│   │   ├── feishu.client.ts    # 飞书 API（通过 lark-cli）
-│   │   ├── reporter.ts         # 日志输出
-│   │   ├── snapshot.ts         # 快照管理
-│   │   ├── daily-report.ts     # 日报生成 + 发送
-│   │   └── csvWriter.ts        # CSV 输出
-│   ├── sync.sh                 # 运行脚本（git pull + 同步）
-│   ├── .env.example            # 配置模板
-│   └── .env                    # 实际配置（不提交 git）
-├── setup.sh                    # 一键安装脚本
-└── README.md
+├── README.md
+├── .gitignore
+└── scripts/
+    ├── sync.sh                     # 同步脚本（git pull + 同步）
+    ├── start-cron.sh               # 一键设置定时任务
+    ├── package.json
+    ├── tsconfig.json
+    ├── vitest.config.ts
+    ├── .env.example                # 配置模板
+    ├── .env                        # 实际配置（不提交 git）
+    ├── .gitignore
+    └── src/
+        ├── sync-to-feishu.ts       # 入口
+        ├── sync.ts                 # 主流程编排
+        ├── config.ts               # 配置加载与校验
+        ├── scanner.ts              # Spec 目录扫描
+        ├── parser.ts               # tasks.md 解析（List_Task + Heading_Task）
+        ├── normalizer.ts           # 归一化 + owners.md 读取
+        ├── diff.ts                 # 差异计算（created/updated/removed）
+        ├── feishu.client.ts        # 飞书 API 客户端（通过 lark-cli）
+        ├── reporter.ts             # 日志格式化输出
+        ├── snapshot.ts             # 快照保存与清理
+        ├── daily-report.ts         # 日报生成 + 飞书群发送
+        ├── csvWriter.ts            # CSV 诊断输出
+        ├── types.ts                # 类型定义
+        └── utils/
+            ├── hash.ts             # SHA-256 哈希
+            └── mask.ts             # 敏感信息脱敏
 ```
 
 ## 换电脑部署
 
-1. `git clone` 本项目 + `cd scripts && npm install`
-2. `lark-cli auth login --scope "..."`（重新登录飞书）
-3. 编辑 `scripts/.env`（飞书表 URL 和仓库地址不变）
-4. `./scripts/sync.sh`
+```bash
+# 1. 克隆本项目
+git clone https://gitlab.com/zach-moon/feishu-sync.git
+cd feishu-sync
+
+# 2. 安装依赖
+cd scripts && npm install && cd ..
+
+# 3. 安装 lark-cli
+npx @larksuite/cli@latest install
+
+# 4. 登录飞书（会打开浏览器授权）
+lark-cli config init
+lark-cli auth login --scope "base:app:read base:app:update base:table:read base:table:create base:field:read base:field:create base:field:update base:field:delete base:record:read base:record:create base:record:update base:record:delete im:message im:message.send_as_user im:chat:read"
+
+# 5. 配置 .env（飞书表 URL + 仓库地址 + chat_id）
+cd scripts
+cp .env.example .env
+# 编辑 .env 填入实际值
+
+# 6. 配置 SSH key（如果目标仓库用 SSH 地址）
+# 确保 ssh-keygen 生成的公钥已添加到 GitLab/GitHub
+
+# 7. 手动跑一次验证
+cd ..
+./scripts/sync.sh
+
+# 8. 设置定时任务（每小时同步 + 每天 17:00 日报）
+./scripts/start-cron.sh
+```
 
 ## 认证说明
 
