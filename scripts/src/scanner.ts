@@ -3,19 +3,11 @@ import path from 'node:path';
 import type { ScanResult, IgnoredEntry } from './types.js';
 
 /**
- * Scans `<repoRoot>/.kiro/specs` for valid spec directories.
- *
- * Classification rules:
- * - Files directly under specs/ → ignored (stray_file)
- * - Entries starting with '.' → ignored (dot_prefix)
- * - Entries starting with '_' → ignored (underscore_prefix)
- * - Directories without tasks.md → ignored (no_tasks_file)
- * - Valid directories with tasks.md → collected as specs
- *
- * Returns specs sorted by specId lexicographically for determinism.
+ * Scans the specs directory for valid spec directories.
+ * Default path: `<repoRoot>/.kiro/specs`, configurable via specsPath parameter.
  */
-export function scanSpecs(repoRoot: string): ScanResult {
-  const specsDir = path.join(repoRoot, '.kiro', 'specs');
+export function scanSpecs(repoRoot: string, specsRelativePath = '.kiro/specs'): ScanResult {
+  const specsDir = path.join(repoRoot, specsRelativePath);
 
   if (!fs.existsSync(specsDir)) {
     return { specs: [], ignored: [] };

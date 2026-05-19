@@ -17,6 +17,7 @@ export interface Config {
   feishuAppToken: string;
   feishuTableId: string;
   repoRoot: string;
+  specsPath: string;
   projectPath: string;
   commitSha: string;
   pipelineId: string;
@@ -150,6 +151,7 @@ const envSchema = z.object({
   DRY_RUN: z.string().optional().default('false'),
   FORCE_SYNC: z.string().optional().default('false'),
   CSV_OUTPUT_PATH: z.string().optional().default(''),
+  SPECS_PATH: z.string().optional().default('.kiro/specs'),
 });
 
 /**
@@ -197,6 +199,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     DRY_RUN: effectiveEnv.DRY_RUN,
     FORCE_SYNC: effectiveEnv.FORCE_SYNC,
     CSV_OUTPUT_PATH: effectiveEnv.CSV_OUTPUT_PATH,
+    SPECS_PATH: effectiveEnv.SPECS_PATH,
   });
 
   if (!parseResult.success) {
@@ -290,6 +293,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     feishuAppToken,
     feishuTableId,
     repoRoot,
+    specsPath: validated.SPECS_PATH,
     projectPath,
     commitSha,
     pipelineId,

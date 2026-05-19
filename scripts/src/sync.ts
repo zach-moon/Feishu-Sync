@@ -36,7 +36,7 @@ export async function runSync(config: Config): Promise<number> {
   reporter.reportContext(config);
 
   // 2. Scan specs
-  const scanResult = scanSpecs(config.repoRoot);
+  const scanResult = scanSpecs(config.repoRoot, config.specsPath);
 
   // 3. Parse each tasks.md
   const parsedTasks = new Map<string, any[]>();
