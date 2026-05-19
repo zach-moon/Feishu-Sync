@@ -1,130 +1,141 @@
-# FeiSync — Kiro Spec 进度同步到飞书多维表格
+# FeiSync
 
 将 GitLab 仓库中 `.kiro/specs/**/tasks.md` 的任务进度自动同步到飞书多维表格。
 
 ## 工作原理
 
 ```
-定时任务 → git pull 目标仓库 → 扫描 .kiro/specs/ → 解析 tasks.md → diff → 写入飞书表
+sync.sh → git clone/pull 目标仓库 → 扫描 .kiro/specs/ → 解析 tasks.md → diff → 写入飞书表
 ```
 
-## 快速开始
+脚本通过 [lark-cli](https://github.com/larksuite/cli) 访问飞书 API（OAuth 个人登录，无需创建应用）。
+
+## 首次配置
+
+### 1. 安装依赖
 
 ```bash
 git clone https://gitlab.com/zach-moon/feishu-sync.git
 cd feishu-sync
-./setup.sh    # 一键完成：安装依赖 + 飞书登录 + 配置 + 定时任务
 ```
 
-## 配置说明
-
-所有配置在 `scripts/.env` 文件中（从 `.env.example` 复制）。
-
-### 必填项
-
-| 变量 | 说明 | 获取方式 |
-|------|------|----------|
-| `FEISHU_APP_TOKEN` | 飞书多维表格标识 | 从飞书表 URL 提取：`/base/<这个>?table=...` |
-| `FEISHU_TABLE_ID` | 飞书表中具体一张表 | 从飞书表 URL 提取：`?table=<这个>` |
-| `REPO_ROOT` | 目标仓库本地路径 | 你 clone 下来的仓库绝对路径 |
-
-### 目标仓库配置
-
-先在部署机器上 clone 目标仓库，然后在 `.env` 中指定路径：
+需要 Node.js 20+，然后：
 
 ```bash
-git clone git@gitlab.hirobot.in:cloud/sproboagent.git ~/repos/sproboagent
+cd scripts && npm install && cd ..
 ```
 
-```env
-REPO_ROOT=/home/user/repos/sproboagent
-```
-
-定时任务每次运行时会自动 `git pull` 获取最新代码。
-
-### 运行模式
-
-| 模式 | 配置 | 说明 |
-|------|------|------|
-| 正常同步 | `DRY_RUN=false` | 扫描 + 写入飞书（默认） |
-| 预览模式 | `DRY_RUN=true` | 只扫描不写飞书，用于调试 |
-| 强制同步 | `FORCE_SYNC=true` | 跳过移除保护阈值，用于首次接入 |
-| CSV 输出 | `CSV_OUTPUT_PATH=/tmp/x.csv` | 额外输出 CSV 诊断文件 |
-
-### 飞书表字段
-
-在飞书多维表格中需要以下字段（全部为文本类型）：
-
-| 字段名 | 说明 |
-|--------|------|
-| SpecID | spec 目录名 |
-| title | 任务标题（含编号） |
-| status | `未开始` / `进行中` / `已完成` / `已移除` |
-| primaryOwner | 主负责人（从 owners.md 读取） |
-| backupOwner | 备份负责人 |
-| commitShaShort | 同步时的 git commit SHA |
-| time | 最后同步时间 |
-
-## 部署到服务器
-
-### 1. 准备环境
+### 2. 安装并登录 lark-cli
 
 ```bash
-# 安装 Node.js 20+
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt-get install -y nodejs
-
-# clone 本项目
-git clone https://gitlab.com/zach-moon/feishu-sync.git ~/feishu-sync
-
-# clone 目标仓库
-git clone git@gitlab.hirobot.in:cloud/sproboagent.git ~/repos/sproboagent
+npx @larksuite/cli@latest install
+lark-cli config init          # 按提示操作（会打开浏览器）
+lark-cli auth login --recommend   # OAuth 登录飞书
 ```
 
-### 2. 运行安装脚本
+### 3. 创建飞书多维表格
 
-```bash
-cd ~/feishu-sync
-./setup.sh
-```
+在飞书里新建一个「多维表格」，不需要手动建字段——脚本首次运行时会自动创建所有需要的列。
 
-按提示输入飞书表 URL 和目标仓库路径即可。
-
-### 3. 验证
-
-```bash
-# 手动跑一次
-cd ~/feishu-sync/scripts && npx tsx src/sync-to-feishu.ts
-
-# 查看定时任务日志
-tail -f /tmp/feisync.log
-```
-
-## 手动运行
+### 4. 配置 .env
 
 ```bash
 cd scripts
+cp .env.example .env
+```
 
-# 正常同步
-npx tsx src/sync-to-feishu.ts
+编辑 `.env`，填入两个必填项：
 
-# 预览模式
+```env
+# 粘贴飞书表的完整 URL
+FEISHU_TABLE_URL="https://xxx.feishu.cn/base/bascnXXX?table=tblXXX"
+
+# 目标仓库的 SSH 地址
+GITLAB_REPO_URL=git@gitlab.example.com:group/project.git
+GITLAB_BRANCH=main
+```
+
+### 5. 运行
+
+```bash
+cd ..
+./scripts/sync.sh
+```
+
+首次运行会自动：
+- clone 目标仓库
+- 在飞书表中创建所需字段（status 为单选类型）
+- 清理空行
+- 写入所有任务数据
+
+## 日常使用
+
+### 手动同步
+
+```bash
+./scripts/sync.sh
+```
+
+### 定时任务（每 30 分钟自动同步）
+
+```bash
+crontab -e
+```
+
+添加：
+```
+*/30 * * * * /path/to/feishu-sync/scripts/sync.sh >> /tmp/feisync.log 2>&1
+```
+
+### 预览模式（不写飞书）
+
+```bash
+cd scripts
 DRY_RUN=true npx tsx src/sync-to-feishu.ts
+```
 
-# 强制同步（跳过移除保护）
+### 强制同步（跳过移除保护）
+
+```bash
+cd scripts
 FORCE_SYNC=true npx tsx src/sync-to-feishu.ts
 ```
 
-## 飞书认证
+## 配置参考
 
-脚本通过 [lark-cli](https://github.com/larksuite/cli) 访问飞书 API，使用 OAuth 个人登录。
+| 变量 | 必填 | 说明 |
+|------|------|------|
+| `FEISHU_TABLE_URL` | ✅ | 飞书多维表格完整 URL |
+| `GITLAB_REPO_URL` | ✅* | 目标仓库 SSH 地址 |
+| `GITLAB_BRANCH` | ❌ | 分支名，默认 `main` |
+| `REPO_ROOT` | ✅* | 或者用本地仓库路径（与 GITLAB_REPO_URL 二选一） |
+| `DRY_RUN` | ❌ | `true` 时不写飞书 |
+| `FORCE_SYNC` | ❌ | `true` 时跳过移除保护 |
+| `REMOVED_PROTECTION_THRESHOLD` | ❌ | 默认 `0.30` |
+| `CSV_OUTPUT_PATH` | ❌ | 设置后输出 CSV 诊断文件 |
 
-- **首次使用**：`setup.sh` 会引导你在浏览器中完成飞书 OAuth 登录
-- **之后**：只要定时任务正常运行（每天至少跑一次），token 会自动续期，永不过期
-- **如果超过 7 天没跑**：需要重新执行 `lark-cli auth login --recommend`
+## 飞书表字段（自动创建）
 
-## 注意事项
+| 列名 | 类型 | 说明 |
+|------|------|------|
+| 文本 | 文本（主字段） | Spec ID（目录名） |
+| title | 文本 | 任务标题 |
+| description | 文本 | 子任务详情 |
+| status | 单选 | `未开始` / `进行中` / `已完成` / `已移除` / `已验收` |
+| primaryOwner | 文本 | 主负责人 |
+| backupOwner | 文本 | 备份负责人 |
+| commitShaShort | 文本 | 同步时的 commit SHA |
+| time | 文本 | 最后同步日期 |
 
-- **git pull 失败**：如果目标仓库有本地修改导致 pull 失败，脚本会用当前本地状态继续同步
-- **移除保护**：如果一次同步中超过 30% 的任务将被标记为"已移除"，脚本会中止并报警
-- **飞书表权限**：确保你的飞书账号对目标多维表格有编辑权限
+## 特殊行为
+
+- **已验收**：飞书表中 status 为「已验收」的记录不会被脚本覆盖
+- **移除保护**：如果一次同步中超过 30% 的任务将被标记为「已移除」，脚本会中止
+- **token 续期**：lark-cli 的 OAuth token 7 天有效，只要定时任务正常运行就会自动续期
+
+## 换电脑部署
+
+1. clone 本项目 + 安装依赖
+2. `lark-cli auth login --recommend`（重新登录飞书）
+3. 编辑 `scripts/.env`（飞书表 URL 不变，仓库地址不变）
+4. `./scripts/sync.sh`
