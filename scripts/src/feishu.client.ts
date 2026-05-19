@@ -14,11 +14,92 @@ export interface UpdateRecord {
   fields: FeishuFieldsMap;
 }
 
-const FIELD_NAMES = ['SpecID', 'title', 'status', 'primaryOwner', 'backupOwner', 'commitShaShort', 'time'];
+const FIELD_NAMES = ['文本', 'title', 'description', 'status', 'primaryOwner', 'backupOwner', 'commitShaShort', 'time'];
 const BATCH_SIZE = 200; // lark-cli limit
+
+// Required fields and their types for auto-creation
+const REQUIRED_FIELDS: Array<{ name: string; type: string; options?: any }> = [
+  // "文本" is the primary field (auto-exists), used as SpecID
+  { name: 'title', type: 'text' },
+  { name: 'description', type: 'text' },
+  { name: 'status', type: 'select', options: { multiple: false, options: [{ name: '未开始' }, { name: '进行中' }, { name: '已完成' }, { name: '已移除' }, { name: '已验收' }] } },
+  { name: 'primaryOwner', type: 'text' },
+  { name: 'backupOwner', type: 'text' },
+  { name: 'commitShaShort', type: 'text' },
+  { name: 'time', type: 'text' },
+];
 
 export class FeishuClient {
   constructor() {}
+
+  /**
+   * Ensure all required fields exist in the table. Creates missing ones automatically.
+   * Also renames the default "文本" field to "SpecID" and cleans up empty rows.
+   */
+  async ensureFields(appToken: string, tableId: string): Promise<void> {
+    // Get existing fields
+    const result = this.execJson(
+      `base +field-list --base-token ${appToken} --table-id ${tableId}`,
+    );
+    const existingFieldsList: Array<{ id: string; name: string }> = (result?.data?.fields ?? []).map((f: any) => ({ id: f.id, name: f.name }));
+    const existingNames = existingFieldsList.map(f => f.name);
+
+    // Create missing fields ("文本" is the primary field, used as SpecID — already exists)
+    for (const field of REQUIRED_FIELDS) {
+      if (!existingNames.includes(field.name)) {
+        const fieldDef: any = { field_name: field.name, type: field.type };
+        if (field.options) {
+          Object.assign(fieldDef, field.options);
+        }
+        const payload = JSON.stringify(fieldDef);
+        const escaped = payload.replace(/'/g, "'\\''");
+        try {
+          this.exec(
+            `base +field-create --base-token ${appToken} --table-id ${tableId} --json '${escaped}'`,
+          );
+          console.log(`[feisync] Created field: ${field.name} (${field.type})`);
+        } catch (err) {
+          console.warn(`[WARN] Failed to create field "${field.name}": ${(err as Error).message?.slice(0, 100)}`);
+        }
+      }
+    }
+
+    // Clean up empty rows (rows where all fields are null/empty)
+    await this.cleanEmptyRows(appToken, tableId);
+  }
+
+  /**
+   * Delete rows where all fields are null/empty (default empty rows from new table).
+   */
+  private async cleanEmptyRows(appToken: string, tableId: string): Promise<void> {
+    try {
+      const records = await this.listAllRecords(appToken, tableId);
+      const emptyRecordIds: string[] = [];
+
+      for (const record of records) {
+        const allEmpty = Object.values(record.fields).every(
+          v => v === null || v === undefined || v === '' || (Array.isArray(v) && v.every(x => x === null)),
+        );
+        if (allEmpty) {
+          emptyRecordIds.push(record.recordId);
+        }
+      }
+
+      if (emptyRecordIds.length > 0) {
+        // Delete empty rows
+        for (const id of emptyRecordIds) {
+          try {
+            this.exec(
+              `base +record-delete --base-token ${appToken} --table-id ${tableId} --record-id ${id} --yes`,
+            );
+          } catch { /* ignore individual delete failures */ }
+        }
+        console.log(`[feisync] Cleaned ${emptyRecordIds.length} empty row(s)`);
+      }
+    } catch (err) {
+      console.warn(`[WARN] Failed to clean empty rows: ${(err as Error).message?.slice(0, 100)}`);
+    }
+  }
 
   private exec(args: string): string {
     try {

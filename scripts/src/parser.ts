@@ -130,6 +130,7 @@ interface InternalTask {
   taskNumber: string;
   separator: '.' | ':' | '';
   title: string;
+  description: string;
   status: 'not_started' | 'in_progress' | 'done';
   progress: number;
   optional: boolean;
@@ -175,6 +176,7 @@ export function parseTasksFile(text: string): ParsedTaskItem[] {
     taskNumber: t.taskNumber,
     separator: t.separator,
     title: t.title,
+    description: t.description,
     status: t.status,
     progress: t.progress,
     optional: t.optional,
@@ -242,11 +244,27 @@ function collectListTasks(tree: Root): InternalTask[] {
 
     const offset = item.position?.start.offset ?? 0;
 
+    // Collect description from nested children (sub-tasks + bullets)
+    const descParts: string[] = [];
+    for (const child of item.children) {
+      if (child.type === 'list') {
+        // Recursively collect all text from nested lists
+        for (const li of (child as List).children) {
+          if (li.type === 'listItem') {
+            const liText = toString(li).trim();
+            if (liText) descParts.push(liText);
+          }
+        }
+      }
+    }
+    const description = descParts.join('\n');
+
     results.push({
       source: 'list',
       taskNumber: extracted.taskNumber,
       separator: extracted.separator,
       title: extracted.title,
+      description,
       status,
       progress,
       optional,
@@ -293,14 +311,31 @@ function collectHeadingTasks(tree: Root): InternalTask[] {
 
     const offset = heading.position?.start.offset ?? 0;
 
+    // Collect description from content between this heading and next
+    const descParts: string[] = [];
+    for (let j = i + 1; j < rootChildren.length; j++) {
+      const sibling = rootChildren[j];
+      if (sibling.type === 'heading' && (sibling as Heading).depth <= 3) break;
+      if (sibling.type === 'list') {
+        for (const li of (sibling as List).children) {
+          if (li.type === 'listItem') {
+            const liText = toString(li).trim();
+            if (liText) descParts.push(liText);
+          }
+        }
+      }
+    }
+    const description = descParts.join('\n');
+
     results.push({
       source: 'heading',
       taskNumber: extracted.taskNumber,
       separator: extracted.separator,
       title: extracted.title,
+      description,
       status,
       progress,
-      optional: false, // Heading_Task never has optional marker
+      optional: false,
       offset,
     });
   }

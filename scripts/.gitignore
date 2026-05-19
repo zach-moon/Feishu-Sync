@@ -11,3 +11,6 @@ dist/
 *.js
 *.d.ts
 *.js.map
+
+# Cloned repos
+.repos/

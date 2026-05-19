@@ -19,11 +19,12 @@ const STATUS_MAP: Record<string, string> = {
 
 function toFeishuFields(row: NormalizedRow, commitSha: string): Record<string, unknown> {
   const fields: Record<string, unknown> = {
-    'SpecID': row.specId,
+    '文本': row.specId,
     'title': row.type === 'task' ? (row as any).displayTitle : row.title,
+    'description': row.type === 'task' ? (row as any).description ?? '' : '',
     'status': STATUS_MAP[row.status] ?? row.status,
     'commitShaShort': commitSha,
-    'time': new Date().toISOString(),
+    'time': new Date().toISOString().split('T')[0],
     'primaryOwner': row.type === 'task' ? (row as any).primaryOwner ?? '' : '',
     'backupOwner': row.type === 'task' ? (row as any).backupOwner ?? '' : '',
   };
@@ -90,13 +91,20 @@ export async function runSync(config: Config): Promise<number> {
 
   // 6. Fetch existing records from Feishu (skip in dry-run if connection fails)
   const feishu = new FeishuClient();
+
+  // Ensure all required fields exist in the table
+  try {
+    await feishu.ensureFields(config.feishuAppToken, config.feishuTableId);
+  } catch (err) {
+    console.warn(`[WARN] ensureFields failed: ${reporter.redactError(err)}`);
+  }
   let existingRecords: Map<string, RawRecord>;
   try {
     const rawRecords = await feishu.listAllRecords(config.feishuAppToken, config.feishuTableId);
     existingRecords = new Map();
     for (const r of rawRecords) {
       // Match by SpecID + title combination as the upsert key
-      const specId = r.fields['SpecID'] as string | undefined;
+      const specId = r.fields['文本'] as string | undefined;
       const title = r.fields['title'] as string | undefined;
       if (specId && title) {
         const key = `${specId}::${title}`;
@@ -171,7 +179,7 @@ export async function runSync(config: Config): Promise<number> {
     try {
       const records: UpdateRecord[] = diff.removed.map(r => ({
         record_id: r.recordId,
-        fields: { '状态': '已移除' },
+        fields: { 'status': '已移除' },
       }));
       await feishu.batchUpdate(config.feishuAppToken, config.feishuTableId, records);
       softRemoved = diff.removed.length;

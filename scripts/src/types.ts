@@ -6,6 +6,7 @@ export interface ParsedTaskItem {
   taskNumber: string;
   separator: '.' | ':' | '';
   title: string;
+  description: string;
   status: 'not_started' | 'in_progress' | 'done';
   progress: number;
   optional: boolean;
@@ -31,6 +32,7 @@ export interface TaskRow {
   taskNumber: string;
   title: string;
   displayTitle: string;
+  description: string;
   status: Status;
   progress: number;
   optional: boolean;

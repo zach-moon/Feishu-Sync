@@ -24,20 +24,31 @@ function hasFieldChanges(row: NormalizedRow, existing: RawRecord): boolean {
 
   // Compare title
   const currentTitle = getDisplayTitle(row);
-  if (fields['title'] !== currentTitle) return true;
+  if (normalizeFieldValue(fields['title']) !== currentTitle) return true;
 
   // Compare status (mapped to Chinese)
   const currentStatus = STATUS_MAP[row.status] ?? row.status;
-  if (fields['status'] !== currentStatus) return true;
+  if (normalizeFieldValue(fields['status']) !== currentStatus) return true;
 
-  // Compare owners
+  // Compare description
   if (row.type === 'task') {
     const taskRow = row as any;
-    if ((fields['primaryOwner'] ?? '') !== (taskRow.primaryOwner ?? '')) return true;
-    if ((fields['backupOwner'] ?? '') !== (taskRow.backupOwner ?? '')) return true;
+    if (normalizeFieldValue(fields['description'] ?? '') !== (taskRow.description ?? '')) return true;
+    if (normalizeFieldValue(fields['primaryOwner'] ?? '') !== (taskRow.primaryOwner ?? '')) return true;
+    if (normalizeFieldValue(fields['backupOwner'] ?? '') !== (taskRow.backupOwner ?? '')) return true;
   }
 
   return false;
+}
+
+/**
+ * Normalize a Feishu field value for comparison.
+ * Feishu returns single-select as ['value'] array, text as string or null.
+ */
+function normalizeFieldValue(val: unknown): string {
+  if (val === null || val === undefined) return '';
+  if (Array.isArray(val)) return val[0] ?? '';
+  return String(val);
 }
 
 export function computeDiff(
@@ -59,17 +70,27 @@ export function computeDiff(
     const existing = existingRecords.get(key);
     if (!existing) {
       created.push(row);
-    } else if (hasFieldChanges(row, existing)) {
-      updated.push({ ...row, recordId: existing.recordId });
     } else {
-      unchanged++;
+      // Skip records that are marked as "已验收" in Feishu — never overwrite them
+      const existingStatus = normalizeFieldValue(existing.fields['status']);
+      if (existingStatus === '已验收') {
+        unchanged++;
+        continue;
+      }
+
+      if (hasFieldChanges(row, existing)) {
+        updated.push({ ...row, recordId: existing.recordId });
+      } else {
+        unchanged++;
+      }
     }
   }
 
   // Find removed: in existing but not in current, and not already marked as removed
   for (const [key, record] of existingRecords) {
     if (!currentKeys.has(key)) {
-      if (record.fields['status'] !== '已移除') {
+      const statusVal = normalizeFieldValue(record.fields['status']);
+      if (statusVal !== '已移除') {
         removed.push({ uniqueId: key, recordId: record.recordId });
       }
     }
@@ -77,7 +98,7 @@ export function computeDiff(
 
   // Calculate removedRatio using active (non-removed) existing records
   const activeExistingCount = [...existingRecords.values()]
-    .filter(r => r.fields['status'] !== '已移除')
+    .filter(r => normalizeFieldValue(r.fields['status']) !== '已移除')
     .length;
   const removedRatio = removed.length / Math.max(activeExistingCount, 1);
 

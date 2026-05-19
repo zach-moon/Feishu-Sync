@@ -105,13 +105,7 @@ function parseGitlabBaseUrlFromRemote(repoRoot: string): string {
  * dotenv does NOT override existing env vars (override: false).
  */
 function loadDotenvFiles(repoRoot: string): void {
-  // Try <Repo_Root>/.env first
-  const repoEnvPath = path.join(repoRoot, '.env');
-  if (existsSync(repoEnvPath)) {
-    dotenvConfig({ path: repoEnvPath, override: false });
-  }
-
-  // Then try script directory .env (src/../.env = scripts/.env)
+  // Try script directory .env first (scripts/.env — this is where config lives)
   const scriptDirEnvPath = path.resolve(
     path.dirname(new URL(import.meta.url).pathname),
     '..',
@@ -120,14 +114,37 @@ function loadDotenvFiles(repoRoot: string): void {
   if (existsSync(scriptDirEnvPath)) {
     dotenvConfig({ path: scriptDirEnvPath, override: false });
   }
+
+  // Then try <Repo_Root>/.env as supplementary
+  const repoEnvPath = path.join(repoRoot, '.env');
+  if (existsSync(repoEnvPath) && repoEnvPath !== scriptDirEnvPath) {
+    dotenvConfig({ path: repoEnvPath, override: false });
+  }
+}
+
+/**
+ * Parse a Feishu Bitable URL into app_token and table_id.
+ * Format: https://xxx.feishu.cn/base/<APP_TOKEN>?table=<TABLE_ID>&...
+ */
+function parseFeishuUrl(url: string): { appToken: string; tableId: string } | null {
+  try {
+    const u = new URL(url);
+    const pathMatch = u.pathname.match(/\/base\/([^/?]+)/);
+    const tableId = u.searchParams.get('table');
+    if (pathMatch && tableId) {
+      return { appToken: pathMatch[1], tableId };
+    }
+  } catch { /* not a valid URL */ }
+  return null;
 }
 
 /**
  * Zod schema for validating required environment variables.
  */
 const envSchema = z.object({
-  FEISHU_APP_TOKEN: z.string().min(1, 'FEISHU_APP_TOKEN is required'),
-  FEISHU_TABLE_ID: z.string().min(1, 'FEISHU_TABLE_ID is required'),
+  FEISHU_TABLE_URL: z.string().optional().default(''),
+  FEISHU_APP_TOKEN: z.string().optional().default(''),
+  FEISHU_TABLE_ID: z.string().optional().default(''),
   GITLAB_BASE_URL: z.string().optional().default(''),
   REMOVED_PROTECTION_THRESHOLD: z.string().optional().default('0.30'),
   DRY_RUN: z.string().optional().default('false'),
@@ -162,12 +179,17 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     loadDotenvFiles(repoRoot);
   }
 
+  // Re-read repoRoot after dotenv (REPO_ROOT may come from .env)
+  if (mode === 'local-cli' && process.env.REPO_ROOT) {
+    repoRoot = process.env.REPO_ROOT;
+  }
+
   // After dotenv loading, re-read env (dotenv populates process.env)
-  // The passed env object takes priority over process.env (dotenv values)
-  const effectiveEnv = { ...process.env, ...env };
+  const effectiveEnv = process.env;
 
   // Validate required fields
   const parseResult = envSchema.safeParse({
+    FEISHU_TABLE_URL: effectiveEnv.FEISHU_TABLE_URL,
     FEISHU_APP_TOKEN: effectiveEnv.FEISHU_APP_TOKEN,
     FEISHU_TABLE_ID: effectiveEnv.FEISHU_TABLE_ID,
     GITLAB_BASE_URL: effectiveEnv.GITLAB_BASE_URL,
@@ -236,10 +258,37 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
   const pipelineId = effectiveEnv.CI_PIPELINE_ID || '';
   const jobId = effectiveEnv.CI_JOB_ID || '';
 
+  // Resolve Feishu table identifiers: URL takes priority over individual vars
+  let feishuAppToken = '';
+  let feishuTableId = '';
+
+  if (validated.FEISHU_TABLE_URL) {
+    const parsed = parseFeishuUrl(validated.FEISHU_TABLE_URL);
+    if (parsed) {
+      feishuAppToken = parsed.appToken;
+      feishuTableId = parsed.tableId;
+    } else {
+      process.stderr.write(
+        `[feisync] Config validation failed. FEISHU_TABLE_URL format invalid. Expected: https://xxx.feishu.cn/base/<TOKEN>?table=<ID>\n`,
+      );
+      process.exit(1);
+    }
+  } else {
+    feishuAppToken = validated.FEISHU_APP_TOKEN;
+    feishuTableId = validated.FEISHU_TABLE_ID;
+  }
+
+  if (!feishuAppToken || !feishuTableId) {
+    process.stderr.write(
+      `[feisync] Config validation failed. Set FEISHU_TABLE_URL (full URL) or both FEISHU_APP_TOKEN + FEISHU_TABLE_ID.\n`,
+    );
+    process.exit(1);
+  }
+
   const config: Config = {
     mode,
-    feishuAppToken: validated.FEISHU_APP_TOKEN,
-    feishuTableId: validated.FEISHU_TABLE_ID,
+    feishuAppToken,
+    feishuTableId,
     repoRoot,
     projectPath,
     commitSha,

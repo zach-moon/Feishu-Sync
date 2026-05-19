@@ -90,6 +90,7 @@ export function normalize(input: NormalizeInput): { specRows: SpecRow[]; taskRow
         taskNumber: task.taskNumber,
         title: task.title,
         displayTitle,
+        description: task.description,
         status: task.status,
         progress: task.progress,
         optional: task.optional,
