@@ -61,8 +61,10 @@ fi
 cd "$SCRIPT_DIR"
 npx tsx src/sync-to-feishu.ts
 
-# 同步完成后自动生成并发送日报
-echo "[feisync] 生成日报..."
-npx tsx src/daily-report.ts
+# 同步完成后自动生成并发送日报（除非传了 --no-report）
+if [ "$1" != "--no-report" ]; then
+  echo "[feisync] 生成日报..."
+  npx tsx src/daily-report.ts
+fi
 
 echo "[feisync] $(date '+%Y-%m-%d %H:%M:%S') 同步完成"

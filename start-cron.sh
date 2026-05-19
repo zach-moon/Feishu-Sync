@@ -11,7 +11,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SYNC_SCRIPT="$SCRIPT_DIR/sync.sh"
 REPORT_CMD="cd $SCRIPT_DIR && npx tsx src/daily-report.ts"
 
-SYNC_CRON="0 * * * * $SYNC_SCRIPT >> /tmp/feisync.log 2>&1"
+SYNC_CRON="0 * * * * $SYNC_SCRIPT --no-report >> /tmp/feisync.log 2>&1"
 REPORT_CRON="0 17 * * * $REPORT_CMD >> /tmp/feisync-report.log 2>&1"
 
 echo "[feisync] 设置定时任务..."
