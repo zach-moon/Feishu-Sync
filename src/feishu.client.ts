@@ -74,6 +74,8 @@ export class FeishuClient {
   private async cleanEmptyRows(appToken: string, tableId: string): Promise<void> {
     try {
       const records = await this.listAllRecords(appToken, tableId);
+      if (records.length > 10) return; // Not a fresh table, skip cleanup
+
       const emptyRecordIds: string[] = [];
 
       for (const record of records) {
@@ -86,7 +88,6 @@ export class FeishuClient {
       }
 
       if (emptyRecordIds.length > 0) {
-        // Delete empty rows
         for (const id of emptyRecordIds) {
           try {
             this.exec(

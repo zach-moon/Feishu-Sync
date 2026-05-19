@@ -2,8 +2,8 @@
 # FeiSync 同步脚本
 # 流程：clone/pull 目标仓库 → 扫描 specs → 同步到飞书
 #
-# 手动运行：./scripts/sync.sh
-# 定时任务：*/30 * * * * /path/to/Feishu-Sync/scripts/sync.sh >> /tmp/feisync.log 2>&1
+# 手动运行：./sync.sh
+# 定时任务：0 * * * * /path/to/feishu-sync/sync.sh >> /tmp/feisync.log 2>&1
 
 set -e
 
@@ -60,5 +60,9 @@ fi
 # 执行同步
 cd "$SCRIPT_DIR"
 npx tsx src/sync-to-feishu.ts
+
+# 同步完成后自动生成并发送日报
+echo "[feisync] 生成日报..."
+npx tsx src/daily-report.ts
 
 echo "[feisync] $(date '+%Y-%m-%d %H:%M:%S') 同步完成"

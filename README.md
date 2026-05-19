@@ -35,7 +35,7 @@ cd feishu-sync
 ### 第二步：安装依赖
 
 ```bash
-cd scripts && npm install && cd ..
+npm install
 ```
 
 ### 第三步：安装并登录 lark-cli
@@ -67,11 +67,11 @@ lark-cli auth login --scope "base:app:read base:app:update base:table:read base:
 ### 第五步：配置 .env
 
 ```bash
-cd scripts
+# (from project root)
 cp .env.example .env
 ```
 
-编辑 `scripts/.env`：
+编辑 `.env`：
 
 ```env
 # 必填：粘贴飞书多维表格的完整 URL
@@ -109,11 +109,11 @@ FEISHU_CHAT_ID=oc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ```bash
 cd ..
-./scripts/sync.sh
+./sync.sh
 ```
 
 首次运行会自动：
-1. Clone 目标仓库到 `scripts/.repos/`
+1. Clone 目标仓库到 `.repos/`
 2. 在飞书表中创建所需字段（status 为单选类型）
 3. 清理默认空行
 4. 写入所有任务数据
@@ -126,7 +126,7 @@ cd ..
 一键设置定时任务（每小时同步 + 每天 17:00 发日报）：
 
 ```bash
-./scripts/start-cron.sh
+./start-cron.sh
 ```
 
 停止定时任务：
@@ -137,26 +137,26 @@ crontab -l | grep -v feisync | grep -v sync.sh | grep -v daily-report | crontab 
 ### 手动同步
 
 ```bash
-./scripts/sync.sh
+./sync.sh
 ```
 
 ### 生成日报
 
 ```bash
-cd scripts && npx tsx src/daily-report.ts
+# (from project root) && npx tsx src/daily-report.ts
 ```
 
 ### 预览模式（不写飞书）
 
 ```bash
-cd scripts
+# (from project root)
 DRY_RUN=true npx tsx src/sync-to-feishu.ts
 ```
 
 ### 强制同步（跳过移除保护）
 
 ```bash
-cd scripts
+# (from project root)
 FORCE_SYNC=true npx tsx src/sync-to-feishu.ts
 ```
 
@@ -204,32 +204,29 @@ FORCE_SYNC=true npx tsx src/sync-to-feishu.ts
 feishu-sync/
 ├── README.md
 ├── .gitignore
-└── scripts/
-    ├── sync.sh                     # 同步脚本（git pull + 同步）
-    ├── start-cron.sh               # 一键设置定时任务
-    ├── package.json
-    ├── tsconfig.json
-    ├── vitest.config.ts
-    ├── .env.example                # 配置模板
-    ├── .env                        # 实际配置（不提交 git）
-    ├── .gitignore
-    └── src/
-        ├── sync-to-feishu.ts       # 入口
-        ├── sync.ts                 # 主流程编排
-        ├── config.ts               # 配置加载与校验
-        ├── scanner.ts              # Spec 目录扫描
-        ├── parser.ts               # tasks.md 解析（List_Task + Heading_Task）
-        ├── normalizer.ts           # 归一化 + owners.md 读取
-        ├── diff.ts                 # 差异计算（created/updated/removed）
-        ├── feishu.client.ts        # 飞书 API 客户端（通过 lark-cli）
-        ├── reporter.ts             # 日志格式化输出
-        ├── snapshot.ts             # 快照保存与清理
-        ├── daily-report.ts         # 日报生成 + 飞书群发送
-        ├── csvWriter.ts            # CSV 诊断输出
-        ├── types.ts                # 类型定义
-        └── utils/
-            ├── hash.ts             # SHA-256 哈希
-            └── mask.ts             # 敏感信息脱敏
+├── .env.example                    # 配置模板
+├── .env                            # 实际配置（不提交 git）
+├── package.json
+├── tsconfig.json
+├── sync.sh                         # 同步脚本（git pull + 同步）
+├── start-cron.sh                   # 一键设置定时任务
+└── src/
+    ├── sync-to-feishu.ts           # 入口
+    ├── sync.ts                     # 主流程编排
+    ├── config.ts                   # 配置加载与校验
+    ├── scanner.ts                  # Spec 目录扫描
+    ├── parser.ts                   # tasks.md 解析
+    ├── normalizer.ts               # 归一化 + owners.md 读取
+    ├── diff.ts                     # 差异计算
+    ├── feishu.client.ts            # 飞书 API 客户端（通过 lark-cli）
+    ├── reporter.ts                 # 日志格式化输出
+    ├── snapshot.ts                 # 快照保存与清理
+    ├── daily-report.ts             # 日报生成 + 飞书群发送
+    ├── csvWriter.ts                # CSV 诊断输出
+    ├── types.ts                    # 类型定义
+    └── utils/
+        ├── hash.ts                 # SHA-256 哈希
+        └── mask.ts                 # 敏感信息脱敏
 ```
 
 ## 认证说明

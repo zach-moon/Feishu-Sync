@@ -9,8 +9,6 @@
   "scripts": {
     "sync": "tsx src/sync-to-feishu.ts",
     "report": "tsx src/daily-report.ts",
-    "test": "vitest run",
-    "test:watch": "vitest",
     "lint": "tsc --noEmit",
     "build": "tsc"
   },
@@ -24,12 +22,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.17.0",
-    "execa": "^9.5.0",
-    "fast-check": "^3.23.0",
-    "memfs": "^4.14.0",
-    "nock": "^14.0.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.7.0",
-    "vitest": "^2.1.0"
+    "typescript": "^5.7.0"
   }
 }
