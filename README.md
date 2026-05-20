@@ -12,8 +12,6 @@
 - 移除保护：防止误操作导致大面积数据丢失
 - 已验收保护：飞书表中标记为「已验收」的记录不会被覆盖
 
-## 快速开始
-
 ## 前置条件
 
 - Node.js 20+（项目根有 `.nvmrc`，nvm/fnm 会自动切到正确版本）
@@ -24,11 +22,13 @@
 > 已在 macOS / Linux / Windows (PowerShell + WSL) 上验证可用。
 > ⚠️ 本工具通过 [lark-cli](https://github.com/larksuite/cli)（飞书官方命令行工具）访问飞书 API，使用 OAuth 个人登录。飞书个人版无法使用。
 
+## 快速开始
+
 ### 第一步：克隆本项目
 
 ```bash
 git clone https://gitlab.com/zach-moon/feishu-sync.git
-or
+# 或
 git clone https://github.com/zach-moon/Feishu-Sync.git
 cd feishu-sync
 ```
@@ -68,7 +68,6 @@ lark-cli auth login --scope "base:app:read base:app:update base:table:read base:
 ### 第五步：配置 .env
 
 ```bash
-# (from project root)
 cp .env.example .env
 ```
 
@@ -86,6 +85,7 @@ GIT_BRANCH=main
 **飞书表 URL 怎么获取：** 打开飞书多维表格，浏览器地址栏的完整 URL 就是。
 
 **仓库地址格式示例：**
+
 ```
 git@gitlab.hirobot.in:cloud/sproboagent.git     # GitLab SSH
 git@github.com:your-org/your-project.git        # GitHub SSH
@@ -106,7 +106,9 @@ FEISHU_CHAT_ID=oc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 > 不需要日报功能可跳过此步。
 
-### 第七步：运行
+### 第七步：首次手动运行验证
+
+先手动跑一次，确认能正常 clone 仓库、创建字段、写入数据：
 
 ```bash
 # macOS / Linux
@@ -115,33 +117,142 @@ FEISHU_CHAT_ID=oc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 # Windows PowerShell
 .\sync.ps1
 
-# 或者跨平台通用方式（任意系统）
+# 跨平台通用方式
 npm run sync       # 仅同步
 npm run report     # 仅日报
 ```
 
 首次运行会自动：
+
 1. Clone 目标仓库到 `.repos/`
 2. 在飞书表中创建所需字段（status 为单选类型）
 3. 清理默认空行
 4. 写入所有任务数据
 5. 保存快照（用于日报对比）
 
-## 日常使用
+确认手动跑通过后，再按下方对应平台的指引配置定时任务。
 
-### 定时任务（推荐）
+## 定时任务配置
 
-#### macOS / Linux
+不同操作系统下推荐的调度机制不同。**先选你的平台，再按对应步骤配置：**
 
-一键设置 cron（默认每小时同步 + 每天 17:00 发日报）：
+| 平台 | 推荐方案 | 原因 |
+|------|---------|------|
+| macOS | **launchd LaunchAgent**（`./install-launchd.sh`） | 用户 session 内运行，能访问 Keychain（lark-cli 必需）和受保护目录 |
+| Linux | cron（`./start-cron.sh`） | 标准方案，环境干净 |
+| Windows | 任务计划程序（Task Scheduler） | 系统原生 |
+
+> ⚠️ **macOS 不要用 cron。** macOS 的 cron 跑在系统级守护进程里，不在用户登录 session：
+> 1. 拿不到 Keychain → lark-cli 发飞书会失败
+> 2. 访问不了 `~/Documents`、`~/Desktop` 等受保护目录
+> launchd LaunchAgent 没这两个问题。
+
+### macOS：launchd（推荐）
+
+项目已经预置好两个 plist 文件（`launchd/com.feisync.sync.plist`、`launchd/com.feisync.report.plist`），一行命令就能装上：
+
+```bash
+./install-launchd.sh
+```
+
+会自动完成：
+
+- 把 plist 复制到 `~/Library/LaunchAgents/`
+- 调用 `launchctl load` 加载
+- 创建日志目录 `~/Library/Logs/feisync/`
+
+默认调度：
+
+| 任务 | 频率 | 日志位置 |
+|------|------|---------|
+| `com.feisync.sync` | 每小时整点 | `~/Library/Logs/feisync/sync.log` |
+| `com.feisync.report` | 每天 17:00 | `~/Library/Logs/feisync/report.log` |
+
+**常用管理命令：**
+
+```bash
+# 查看是否已加载
+launchctl list | grep com.feisync
+
+# 立即手动触发（测试用，等同于到点自动执行）
+launchctl kickstart -k "gui/$(id -u)/com.feisync.sync"
+launchctl kickstart -k "gui/$(id -u)/com.feisync.report"
+
+# 看实时日志
+tail -f ~/Library/Logs/feisync/sync.log
+tail -f ~/Library/Logs/feisync/report.log
+
+# 卸载
+./install-launchd.sh uninstall
+```
+
+**改频率：** 编辑 `launchd/com.feisync.sync.plist` 或 `com.feisync.report.plist` 里的 `StartCalendarInterval`，然后重跑 `./install-launchd.sh`（会自动 unload 再 load）。
+
+举例，把同步改成每 30 分钟一次：
+
+```xml
+<!-- 替换原来的 StartCalendarInterval 为 StartInterval（秒） -->
+<key>StartInterval</key>
+<integer>1800</integer>
+```
+
+或者保留整点触发改成每 2 小时：
+
+```xml
+<key>StartCalendarInterval</key>
+<array>
+  <dict><key>Minute</key><integer>0</integer><key>Hour</key><integer>0</integer></dict>
+  <dict><key>Minute</key><integer>0</integer><key>Hour</key><integer>2</integer></dict>
+  <dict><key>Minute</key><integer>0</integer><key>Hour</key><integer>4</integer></dict>
+  <!-- ... -->
+</array>
+```
+
+### Linux：cron
 
 ```bash
 ./start-cron.sh
 ```
 
-#### Windows
+默认行为：
 
-用任务计划程序 (Task Scheduler) 调用 `sync.ps1`：
+- 同步：每小时整点（`0 * * * *`）
+- 日报：每天 17:00（`0 17 * * *`）
+- 日志：`./logs/sync.log`、`./logs/report.log`
+
+**自定义频率：** 编辑 `start-cron.sh` 里这两行：
+
+```bash
+SYNC_CRON="0 * * * * ..."
+REPORT_CRON="0 17 * * * ..."
+```
+
+常用 cron 表达式：
+
+| 需求 | 表达式 |
+|------|--------|
+| 每小时 | `0 * * * *` |
+| 每 30 分钟 | `*/30 * * * *` |
+| 每 2 小时 | `0 */2 * * *` |
+| 工作时间每小时 | `0 9-18 * * 1-5` |
+| 每天早 9 点 | `0 9 * * *` |
+| 每天晚 10 点 | `0 22 * * *` |
+
+修改后重新运行 `./start-cron.sh` 生效。
+
+**管理命令：**
+
+```bash
+# 查看已设置的 cron
+crontab -l | grep -F "$(pwd)"
+
+# 删除当前项目的所有定时任务
+crontab -l | grep -vF "$(pwd)" | crontab -
+```
+
+### Windows：任务计划程序
+
+用 `schtasks` 命令行注册（PowerShell 管理员模式）：
 
 ```powershell
 # 每小时同步（不发日报）
@@ -153,41 +264,23 @@ schtasks /Create /SC DAILY /ST 17:00 /TN "FeiSync-Report" `
   /TR "powershell -NoProfile -ExecutionPolicy Bypass -File C:\path\to\Feishu-Sync\sync.ps1 -ReportOnly"
 ```
 
-删除任务：`schtasks /Delete /TN "FeiSync-Sync" /F`
+**管理命令：**
 
-#### 自定义频率
+```powershell
+# 查看
+schtasks /Query /TN "FeiSync-Sync"
 
-编辑 `start-cron.sh` 中的两行 cron 表达式：
+# 立即触发（测试）
+schtasks /Run /TN "FeiSync-Sync"
 
-```bash
-# 同步频率（默认每小时整点）
-SYNC_CRON="0 * * * * ..."
-
-# 日报发送时间（默认每天 17:00）
-REPORT_CRON="0 17 * * * ..."
+# 删除
+schtasks /Delete /TN "FeiSync-Sync" /F
+schtasks /Delete /TN "FeiSync-Report" /F
 ```
 
-常用 cron 表达式：
+> Windows 也可以用 WSL + Linux cron 方案，注意 WSL 必须保持运行。
 
-| 需求 | 表达式 | 说明 |
-|------|--------|------|
-| 每小时 | `0 * * * *` | 默认 |
-| 每 30 分钟 | `*/30 * * * *` | |
-| 每 2 小时 | `0 */2 * * *` | |
-| 工作时间每小时 | `0 9-18 * * 1-5` | 周一到周五 9-18 点 |
-| 每天早 9 点发日报 | `0 9 * * *` | |
-| 每天下午 5 点发日报 | `0 17 * * *` | 默认 |
-| 每天晚 10 点发日报 | `0 22 * * *` | |
-
-修改后重新运行 `./start-cron.sh` 生效。
-
-停止定时任务：
-```bash
-# 删除当前项目的所有定时任务（用项目绝对路径精准匹配）
-crontab -l | grep -vF "$(pwd)" | crontab -
-```
-
-### 手动同步
+## 手动同步
 
 ```bash
 # macOS / Linux
@@ -195,12 +288,12 @@ crontab -l | grep -vF "$(pwd)" | crontab -
 ./sync.sh --no-report    # 仅同步
 ./sync.sh --report-only  # 仅日报
 
-# Windows
+# Windows PowerShell
 .\sync.ps1
 .\sync.ps1 -NoReport
 .\sync.ps1 -ReportOnly
 
-# 跨平台（任意系统都可用）
+# 跨平台通用
 npm run sync
 npm run report
 ```
@@ -225,7 +318,7 @@ FORCE_SYNC=true npm run sync
 | `GIT_REPO_URL` | ✅* | — | 目标仓库地址（SSH 或 HTTPS） |
 | `GIT_BRANCH` | ❌ | `main` | 分支名 |
 | `REPO_ROOT` | ✅* | — | 或用本地仓库路径（与 GIT_REPO_URL 二选一） |
-| `SPECS_PATH` | ❌ | `.kiro/specs` | Spec 目录相对路径（可自定义） |
+| `SPECS_PATH` | ❌ | `.kiro/specs` | Spec 目录相对路径 |
 | `FEISHU_CHAT_ID` | ❌ | — | 日报发送的飞书群 chat_id |
 | `DRY_RUN` | ❌ | `false` | 预览模式 |
 | `FORCE_SYNC` | ❌ | `false` | 跳过移除保护 |
@@ -255,6 +348,17 @@ FORCE_SYNC=true npm run sync
 | commit + time | 只在记录被创建或更新时写入，unchanged 记录保持原值 |
 | 快照清理 | 自动保留最近 7 天快照，超过的自动删除 |
 
+## 故障排查
+
+| 现象 | 可能原因 | 解决 |
+|------|---------|------|
+| `command not found: lark-cli` | PATH 没有拿到 npm 全局目录 | 检查 `~/.npm-global/bin` 或 `/opt/homebrew/bin` 在 `$PATH`，必要时改 `sync.sh` 顶部的 `EXTRA_PATHS` |
+| `lark-cli auth ...` 报 token 过期 | OAuth token 7 天没续就过期 | 重新跑 `lark-cli auth login --scope "..."` |
+| macOS cron 任务跑了但没发飞书 | cron 拿不到 Keychain | 改用 launchd（`./install-launchd.sh`） |
+| launchd 装好了但没触发 | 系统休眠错过了时间点 | launchd 不会补跑，可加 `<key>StartInterval</key>` 兜底 |
+| `git pull` 失败 | SSH key 没加 | `ssh -T git@github.com` 验证 |
+| 任务全部被标记「已移除」 | tasks.md 路径或格式变了 | 用 `DRY_RUN=true` 预览，必要时 `FORCE_SYNC=true` |
+
 ## 目录结构
 
 ```
@@ -268,7 +372,11 @@ feishu-sync/
 ├── tsconfig.json
 ├── sync.sh                         # 同步脚本（macOS / Linux）
 ├── sync.ps1                        # 同步脚本（Windows PowerShell）
-├── start-cron.sh                   # 一键设置 cron（macOS / Linux）
+├── start-cron.sh                   # 一键设置 cron（Linux）
+├── install-launchd.sh              # 一键安装 LaunchAgent（macOS）
+├── launchd/
+│   ├── com.feisync.sync.plist      # macOS 同步任务定义
+│   └── com.feisync.report.plist    # macOS 日报任务定义
 ├── logs/                           # 运行日志（自动创建，不提交）
 └── src/
     ├── sync-to-feishu.ts           # 入口

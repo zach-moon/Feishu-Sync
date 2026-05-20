@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.feisync.sync</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/v/Projects/Feishu-Sync/sync.sh</string>
+    <string>--no-report</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/v/Projects/Feishu-Sync</string>
+
+  <!-- 每小时整点触发 -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/Users/v/Library/Logs/feisync/sync.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/v/Library/Logs/feisync/sync.log</string>
+
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>
