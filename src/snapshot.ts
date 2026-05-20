@@ -1,12 +1,11 @@
 import { writeFileSync, readFileSync, readdirSync, unlinkSync, mkdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { TaskRow } from './types.js';
 
-const SNAPSHOTS_DIR = path.resolve(
-  path.dirname(new URL(import.meta.url).pathname),
-  '..',
-  '.snapshots',
-);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const SNAPSHOTS_DIR = path.resolve(__dirname, '..', '.snapshots');
 
 const MAX_SNAPSHOTS = 7; // Keep only last 7 days
 

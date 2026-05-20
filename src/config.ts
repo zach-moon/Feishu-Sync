@@ -3,6 +3,9 @@ import { config as dotenvConfig } from 'dotenv';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { execSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Runtime mode: CI pipeline or local developer CLI.
@@ -107,11 +110,7 @@ function parseGitlabBaseUrlFromRemote(repoRoot: string): string {
  */
 function loadDotenvFiles(repoRoot: string): void {
   // Try script directory .env first (scripts/.env — this is where config lives)
-  const scriptDirEnvPath = path.resolve(
-    path.dirname(new URL(import.meta.url).pathname),
-    '..',
-    '.env',
-  );
+  const scriptDirEnvPath = path.resolve(__dirname, '..', '.env');
   if (existsSync(scriptDirEnvPath)) {
     dotenvConfig({ path: scriptDirEnvPath, override: false });
   }

@@ -8,11 +8,12 @@ import { execSync } from 'node:child_process';
 import { config as dotenvConfig } from 'dotenv';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { loadSnapshot, getPreviousSnapshotDate, type SnapshotEntry } from './snapshot.js';
 
-// Load .env
-const scriptDir = path.dirname(new URL(import.meta.url).pathname);
-const envPath = path.resolve(scriptDir, '..', '.env');
+// Load .env (Windows-safe ESM __dirname)
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const envPath = path.resolve(__dirname, '..', '.env');
 if (existsSync(envPath)) {
   dotenvConfig({ path: envPath });
 }

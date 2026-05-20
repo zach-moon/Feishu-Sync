@@ -10,7 +10,8 @@
     "sync": "tsx src/sync-to-feishu.ts",
     "report": "tsx src/daily-report.ts",
     "lint": "tsc --noEmit",
-    "build": "tsc"
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "dotenv": "^16.4.7",

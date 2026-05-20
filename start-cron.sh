@@ -1,28 +1,34 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # ============================================================
-# FeiSync 定时任务一键启动
+# FeiSync 定时任务一键启动 (macOS / Linux)
 # 运行此脚本后自动设置：
 #   - 每小时同步一次飞书表
 #   - 每天下午 5 点发送日报到飞书群
+#
+# Windows 用户请改用任务计划程序 (Task Scheduler) 或 WSL。
 # ============================================================
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SYNC_SCRIPT="$SCRIPT_DIR/sync.sh"
-REPORT_CMD="cd $SCRIPT_DIR && npx tsx src/daily-report.ts"
+LOG_DIR="$SCRIPT_DIR/logs"
+mkdir -p "$LOG_DIR"
 
-SYNC_CRON="0 * * * * $SYNC_SCRIPT --no-report >> /tmp/feisync.log 2>&1"
-REPORT_CRON="0 17 * * * $REPORT_CMD >> /tmp/feisync-report.log 2>&1"
+SYNC_CRON="0 * * * * $SYNC_SCRIPT --no-report >> $LOG_DIR/sync.log 2>&1"
+REPORT_CRON="0 17 * * * $SYNC_SCRIPT --report-only >> $LOG_DIR/report.log 2>&1"
 
 echo "[feisync] 设置定时任务..."
 
 # 获取当前 crontab（忽略空的情况）
 CURRENT_CRON=$(crontab -l 2>/dev/null || true)
 
-# 检查是否已存在
+# 用脚本绝对路径作为唯一标识，避免误删其他项目的同名脚本
+MARKER_SYNC="$SYNC_SCRIPT --no-report"
+MARKER_REPORT="$SYNC_SCRIPT --report-only"
+
 CHANGED=false
 
-if echo "$CURRENT_CRON" | grep -q "sync.sh"; then
+if echo "$CURRENT_CRON" | grep -Fq "$MARKER_SYNC"; then
   echo "  ✓ 同步任务已存在，跳过"
 else
   CURRENT_CRON="$CURRENT_CRON
@@ -31,7 +37,7 @@ $SYNC_CRON"
   echo "  + 添加：每小时同步一次"
 fi
 
-if echo "$CURRENT_CRON" | grep -q "daily-report"; then
+if echo "$CURRENT_CRON" | grep -Fq "$MARKER_REPORT"; then
   echo "  ✓ 日报任务已存在，跳过"
 else
   CURRENT_CRON="$CURRENT_CRON
@@ -51,12 +57,12 @@ fi
 
 echo ""
 echo "当前 crontab："
-crontab -l 2>/dev/null | grep -E "feisync|sync\.sh|daily-report" || echo "  (无)"
+crontab -l 2>/dev/null | grep -F "$SCRIPT_DIR" || echo "  (无)"
 echo ""
 echo "日志位置："
-echo "  同步日志: /tmp/feisync.log"
-echo "  日报日志: /tmp/feisync-report.log"
+echo "  同步日志: $LOG_DIR/sync.log"
+echo "  日报日志: $LOG_DIR/report.log"
 echo ""
 echo "管理命令："
 echo "  查看: crontab -l"
-echo "  停止: crontab -l | grep -v feisync | grep -v sync.sh | grep -v daily-report | crontab -"
+echo "  停止: crontab -l | grep -vF \"$SCRIPT_DIR\" | crontab -"

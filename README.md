@@ -16,11 +16,12 @@
 
 ## 前置条件
 
-- Node.js 20+
+- Node.js 20+（项目根有 `.nvmrc`，nvm/fnm 会自动切到正确版本）
 - Git
 - **飞书企业版**（个人版不支持 lark-cli OAuth 登录和多维表格 API）
 - 目标仓库的 SSH 访问权限（如果用 SSH 地址）
 
+> 已在 macOS / Linux / Windows (PowerShell + WSL) 上验证可用。
 > ⚠️ 本工具通过 [lark-cli](https://github.com/larksuite/cli)（飞书官方命令行工具）访问飞书 API，使用 OAuth 个人登录。飞书个人版无法使用。
 
 ### 第一步：克隆本项目
@@ -108,8 +109,15 @@ FEISHU_CHAT_ID=oc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ### 第七步：运行
 
 ```bash
-cd ..
+# macOS / Linux
 ./sync.sh
+
+# Windows PowerShell
+.\sync.ps1
+
+# 或者跨平台通用方式（任意系统）
+npm run sync       # 仅同步
+npm run report     # 仅日报
 ```
 
 首次运行会自动：
@@ -123,13 +131,33 @@ cd ..
 
 ### 定时任务（推荐）
 
-一键设置定时任务（默认每小时同步 + 每天 17:00 发日报）：
+#### macOS / Linux
+
+一键设置 cron（默认每小时同步 + 每天 17:00 发日报）：
 
 ```bash
 ./start-cron.sh
 ```
 
-**自定义频率：** 编辑 `start-cron.sh` 中的两行 cron 表达式：
+#### Windows
+
+用任务计划程序 (Task Scheduler) 调用 `sync.ps1`：
+
+```powershell
+# 每小时同步（不发日报）
+schtasks /Create /SC HOURLY /TN "FeiSync-Sync" `
+  /TR "powershell -NoProfile -ExecutionPolicy Bypass -File C:\path\to\Feishu-Sync\sync.ps1 -NoReport"
+
+# 每天 17:00 发日报
+schtasks /Create /SC DAILY /ST 17:00 /TN "FeiSync-Report" `
+  /TR "powershell -NoProfile -ExecutionPolicy Bypass -File C:\path\to\Feishu-Sync\sync.ps1 -ReportOnly"
+```
+
+删除任务：`schtasks /Delete /TN "FeiSync-Sync" /F`
+
+#### 自定义频率
+
+编辑 `start-cron.sh` 中的两行 cron 表达式：
 
 ```bash
 # 同步频率（默认每小时整点）
@@ -155,33 +183,38 @@ REPORT_CRON="0 17 * * * ..."
 
 停止定时任务：
 ```bash
-crontab -l | grep -v feisync | grep -v sync.sh | grep -v daily-report | crontab -
+# 删除当前项目的所有定时任务（用项目绝对路径精准匹配）
+crontab -l | grep -vF "$(pwd)" | crontab -
 ```
 
 ### 手动同步
 
 ```bash
-./sync.sh
-```
+# macOS / Linux
+./sync.sh                # 同步 + 日报
+./sync.sh --no-report    # 仅同步
+./sync.sh --report-only  # 仅日报
 
-### 生成日报
+# Windows
+.\sync.ps1
+.\sync.ps1 -NoReport
+.\sync.ps1 -ReportOnly
 
-```bash
-# (from project root) && npx tsx src/daily-report.ts
+# 跨平台（任意系统都可用）
+npm run sync
+npm run report
 ```
 
 ### 预览模式（不写飞书）
 
 ```bash
-# (from project root)
-DRY_RUN=true npx tsx src/sync-to-feishu.ts
+DRY_RUN=true npm run sync
 ```
 
 ### 强制同步（跳过移除保护）
 
 ```bash
-# (from project root)
-FORCE_SYNC=true npx tsx src/sync-to-feishu.ts
+FORCE_SYNC=true npm run sync
 ```
 
 ## 配置参考
@@ -228,12 +261,15 @@ FORCE_SYNC=true npx tsx src/sync-to-feishu.ts
 feishu-sync/
 ├── README.md
 ├── .gitignore
+├── .nvmrc                          # 锁定 Node 版本
 ├── .env.example                    # 配置模板
 ├── .env                            # 实际配置（不提交 git）
 ├── package.json
 ├── tsconfig.json
-├── sync.sh                         # 同步脚本（git pull + 同步）
-├── start-cron.sh                   # 一键设置定时任务
+├── sync.sh                         # 同步脚本（macOS / Linux）
+├── sync.ps1                        # 同步脚本（Windows PowerShell）
+├── start-cron.sh                   # 一键设置 cron（macOS / Linux）
+├── logs/                           # 运行日志（自动创建，不提交）
 └── src/
     ├── sync-to-feishu.ts           # 入口
     ├── sync.ts                     # 主流程编排
